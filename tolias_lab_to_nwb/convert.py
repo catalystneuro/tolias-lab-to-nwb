@@ -103,9 +103,6 @@ def main():
 
     fpath_base, fname = os.path.split(args.input_fpath)
     session_id = os.path.splitext(fname)[0]
-    data = loadmat(args.input_fpath)
-
-    time, current, voltage, curr_index_0 = data_preparation(data)
 
     if not args.output_fpath:
         args.output_fpath = os.path.join(fpath_base, session_id + '.nwb')
@@ -116,6 +113,8 @@ def main():
     with open(args.metafile) as f:
         metadata = yaml.safe_load(f)
 
+    data = loadmat(args.input_fpath)
+    time, current, voltage, curr_index_0 = data_preparation(data)
     make_nwb(current, voltage, 25e3, session_id, metadata, args.output_fpath)
 
 
