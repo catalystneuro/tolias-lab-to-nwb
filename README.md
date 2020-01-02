@@ -7,7 +7,30 @@ pip install https://github.com/ben-dichter-consulting/tolias-lab-to-nwb.git
 ```
 
 ## Usage
-convert data using a bash script:
+in python:
+```python
+import os
+from ruamel import yaml
+from scipy.io import loadmat
+from tolias_lab_to_nwb.convert import make_nwb
+from tolias_lab_to_nwb.data_prep import data_preparation
+
+input_fpath = '/path/to/08 01 2019 sample 1.mat'
+output_fpath = 'path/to/dest.nwb'
+metafile_fpath = 'path/to/metafile.yml'
+
+fpath_base, fname = os.path.split(input_fpath)
+session_id = os.path.splitext(fname)[0]
+
+with open(metafile_fpath) as f:
+    metadata = yaml.safe_load(f)
+
+data = loadmat(input_fpath)
+time, current, voltage, curr_index_0 = data_preparation(data)
+make_nwb(current, voltage, 25e3, session_id, metadata, output_fpath)
+```
+
+in command line:
 ```
 usage: convert.py [-h] [-o OUTPUT_FPATH] [-m METAFILE] input_fpath
 
