@@ -1,5 +1,5 @@
 # tolias-lab-to-nwb
-Code for converting Tolias Lab data to NWB
+Code for converting Tolias Lab data to NWB. The text metadata is stored in a YAML file, and must be edited with the correct fields to be added to the NWB file.
 
 ## Installation
 ```shell script
