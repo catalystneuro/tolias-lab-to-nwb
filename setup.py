@@ -14,5 +14,5 @@ setup(
     author_email='ben.dichter@gmail.com',
     packages=find_packages(),
     include_package_data=True,
-    install_requires=['pandas', 'numpy', 'scipy']
+    install_requires=['pandas', 'numpy', 'scipy', 'ruamel', 'pynwb']
 )
