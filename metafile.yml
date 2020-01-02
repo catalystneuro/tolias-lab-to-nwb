@@ -1,0 +1,20 @@
+NWBFile:
+  experiment_description: Current clamp square
+  experimenter: Federico Scala
+  institution: Baylor College of Medicine
+  lab: Tolias
+  session_description: Current clamp square
+Icephys:
+  Device:
+    name: ADDME (acquisition system name)
+  Electrode:
+    name: elec0
+    description: An intracellular electrode
+Subject:
+  description: naive
+  genotype: wild-type
+  sex: Male
+  species: Mus musculus
+  subject_id: I5
+  weight: '11.6g'
+  date_of_birth: 2016-04-04 00:15:00
