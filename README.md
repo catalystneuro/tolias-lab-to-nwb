@@ -8,7 +8,7 @@ pip install https://github.com/ben-dichter-consulting/tolias-lab-to-nwb.git
 
 ## Usage
 convert data using a bash script:
-```shell script
+```
 usage: convert.py [-h] [-o OUTPUT_FPATH] [-m METAFILE] input_fpath
 
 convert .mat file to NWB
