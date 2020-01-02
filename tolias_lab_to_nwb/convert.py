@@ -81,12 +81,23 @@ def make_nwb(current, voltage, rate, session_id, metadata, filepath):
 
 
 def main():
-    argparser = argparse.ArgumentParser(description='convert .mat file to NWB')
+    argparser = argparse.ArgumentParser(
+        description='convert .mat file to NWB',
+        epilog="example usage:\n"
+               "  python -m tolias_lab_to_nwb.convert '/path/to/08 01 2019 sample 1.mat'\n"
+               "  python -m tolias_lab_to_nwb.convert '/path/to/08 01 2019 sample 1.mat' -m path/to/metafile.yml\n"
+               "  python -m tolias_lab_to_nwb.convert '/path/to/08 01 2019 sample 1.mat' -m path/to/metafile.yml -o "
+               "path/to/dest.nwb",
+        formatter_class=argparse.RawTextHelpFormatter)
     argparser.add_argument("input_fpath", type=str, help="path of .mat file to convert")
-    argparser.add_argument("-o", "--output_fpath", type=str, help="path to save NWB file",
-                           default=None)
-    argparser.add_argument("-m", "--metafile", type=str, help="YAML file that contains meta-data for experiment",
-                           default=None)
+    argparser.add_argument("-o", "--output_fpath", type=str, default=None,
+                           help="path to save NWB file. If not provided, file will\n"
+                                "output as input_fname.nwb in the same directory \n"
+                                "as the input data.")
+    argparser.add_argument("-m", "--metafile", type=str, default=None,
+                           help="YAML file that contains metadata for experiment. \n"
+                                "If not provided, will look for metafile.yml in the\n"
+                                "same directory as the input data.")
 
     args = argparser.parse_args()
 
