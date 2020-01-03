@@ -1,14 +1,12 @@
 import argparse
 import os
-import uuid
 
 import numpy as np
 from dateutil import parser
-from pynwb import NWBFile, NWBHDF5IO
-from pynwb.file import Subject
 from pynwb.icephys import CurrentClampStimulusSeries, CurrentClampSeries, IZeroClampSeries
 from ruamel import yaml
 from scipy.io import loadmat
+from nwbn_conversion_tools import NWBConverter
 
 from .data_prep import data_preparation
 
@@ -23,61 +21,40 @@ def gen_current_stim_template(times, rate):
     return current_template
 
 
-def make_nwb(current, voltage, rate, session_id, metadata, filepath):
+class ToliasNWBConverter(NWBConverter):
+    def add_icephys_data(self, current, voltage, rate):
 
-    session_date = parser.parse(session_id[:10])
+        current_template = gen_current_stim_template(times=(.1, .7, .9), rate=rate)
 
-    nwbfile_args = dict(
-        identifier=str(uuid.uuid4()),
-        session_start_time=session_date,
-        session_id=session_id
-    )
-    nwbfile_args.update(metadata['NWBFile'])
-    nwbfile = NWBFile(**nwbfile_args)
+        elec = list(self.ic_elecs.values())[0]
 
-    nwbfile.subject = Subject(**metadata['Subject'])
+        for i, (ivoltage, icurrent) in enumerate(zip(voltage.T, current)):
 
-    device = nwbfile.create_device(**metadata['Icephys']['Device'])
+            if icurrent == 0:
+                self.nwbfile.add_acquisition(IZeroClampSeries(
+                    name="CurrentClampSeries{:03d}".format(i),
+                    data=ivoltage,
+                    electrode=elec,
+                    rate=rate,
+                    gain=1.,
+                    sweep_number=i))
+            else:
+                self.nwbfile.add_stimulus(CurrentClampStimulusSeries(
+                    name="CurrentClampStimulusSeries{:03d}".format(i),
+                    data=current_template * icurrent,
+                    starting_time=np.nan,
+                    rate=rate,
+                    electrode=elec,
+                    gain=1.,
+                    sweep_number=i))
 
-    elec = nwbfile.create_ic_electrode(device=device,
-                                       **metadata['Icephys']['Electrode'])
-
-    current_template = gen_current_stim_template(times=(.1, .7, .9), rate=rate)
-
-    for i, (ivoltage, icurrent) in enumerate(zip(voltage.T, current)):
-
-        if icurrent == 0:
-            nwbfile.add_acquisition(IZeroClampSeries(
-                name="CurrentClampSeries{:03d}".format(i),
-                data=ivoltage,
-                electrode=elec,
-                rate=rate,
-                gain=1.,
-                sweep_number=i))
-        else:
-            nwbfile.add_stimulus(CurrentClampStimulusSeries(
-                name="CurrentClampStimulusSeries{:03d}".format(i),
-                data=current_template * icurrent,
-                starting_time=np.nan,
-                rate=rate,
-                electrode=elec,
-                gain=1.,
-                sweep_number=i))
-
-            nwbfile.add_acquisition(CurrentClampSeries(
-                name="CurrentClampSeries{:03d}".format(i),
-                data=ivoltage,
-                electrode=elec,
-                rate=rate,
-                gain=1.,
-                sweep_number=i))
-
-    with NWBHDF5IO(filepath, 'w') as io:
-        io.write(nwbfile)
-
-    #  test read
-    with NWBHDF5IO(filepath, 'r') as io:
-        io.read()
+                self.nwbfile.add_acquisition(CurrentClampSeries(
+                    name="CurrentClampSeries{:03d}".format(i),
+                    data=ivoltage,
+                    electrode=elec,
+                    rate=rate,
+                    gain=1.,
+                    sweep_number=i))
 
 
 def main():
@@ -113,9 +90,17 @@ def main():
     with open(args.metafile) as f:
         metadata = yaml.safe_load(f)
 
+    metadata['NWBFile']['session_start_time'] = parser.parse(session_id[:10])
+    metadata['NWBFile']['session_id'] = session_id
+
+    tolias_converter = ToliasNWBConverter(metadata)
+
     data = loadmat(args.input_fpath)
     time, current, voltage, curr_index_0 = data_preparation(data)
-    make_nwb(current, voltage, 25e3, session_id, metadata, args.output_fpath)
+
+    tolias_converter.add_icephys_data(current, voltage, rate=25e3)
+
+    tolias_converter.save(args.output_fpath)
 
 
 if __name__ == "__main__":
