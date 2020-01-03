@@ -12,7 +12,7 @@ in python:
 import os
 from ruamel import yaml
 from scipy.io import loadmat
-from tolias_lab_to_nwb.convert import make_nwb
+from tolias_lab_to_nwb.convert import ToliasNWBConverter
 from tolias_lab_to_nwb.data_prep import data_preparation
 
 input_fpath = '/path/to/08 01 2019 sample 1.mat'
@@ -25,9 +25,14 @@ session_id = os.path.splitext(fname)[0]
 with open(metafile_fpath) as f:
     metadata = yaml.safe_load(f)
 
+tolias_converter = ToliasNWBConverter(metadata)
+
 data = loadmat(input_fpath)
 time, current, voltage, curr_index_0 = data_preparation(data)
-make_nwb(current, voltage, 25e3, session_id, metadata, output_fpath)
+
+tolias_converter.add_icephys_data(current, voltage, rate=25e3)
+
+tolias_converter.save(output_fpath)
 ```
 
 in command line:
