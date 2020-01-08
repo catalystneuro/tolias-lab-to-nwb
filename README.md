@@ -3,7 +3,7 @@ Code for converting Tolias Lab data to NWB. The text metadata is stored in a YAM
 
 ## Installation
 ```shell script
-pip install https://github.com/ben-dichter-consulting/tolias-lab-to-nwb.git
+pip install git+https://github.com/ben-dichter-consulting/tolias-lab-to-nwb.git
 ```
 
 ## Usage
