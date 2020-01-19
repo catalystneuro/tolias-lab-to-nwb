@@ -67,3 +67,45 @@ example usage:
   python -m tolias_lab_to_nwb.convert '/path/to/08 01 2019 sample 1.mat' -m path/to/metafile.yml -o path/to/dest.nwb
 ```
 
+Reading the resulting NWB files in python:
+
+```python
+from pynwb import NWBHDF5IO
+import numpy as np
+import matplotlib.pyplot as plt
+
+fpath = 'path/to/08 01 2019 sample 1.nwb'
+
+io = NWBHDF5IO(fpath, 'r')
+
+nwb = io.read()
+
+def plot_sweep(sweep, ax=None):
+    if ax is None:
+        _, ax = plt.subplots()
+    dat = sweep.data[:]
+    yy = dat * sweep.conversion
+    xx = np.arange(len(dat))/sweep.rate
+    
+    ax.plot(xx, yy)
+    
+    ax.set_ylabel(sweep.unit)
+    ax.set_xlabel('time (s)')
+
+def get_stim_and_response(nwb, stim_name):
+    stimulus = nwb.stimulus[stim_name]
+    df = nwb.sweep_table.to_dataframe()
+    stim_select = df['series'].apply(lambda x: x[0].object_id) == stimulus.object_id
+    sweep_number = df['sweep_number'][stim_select].values[0]
+    resp_select = df['sweep_number'] == sweep_number - stim_select
+    response = df['series'][resp_select].values[0][0]
+    return stimulus, response
+
+stimulus, response = get_stim_and_response(nwb, 'CurrentClampStimulusSeries002')
+
+fig, axs = plt.subplots(2,1, sharex=True)
+plot_sweep(stimulus, ax=axs[0])
+plot_sweep(response, ax=axs[1])
+_ = axs[0].set_xlabel('')
+```
+
