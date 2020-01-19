@@ -67,7 +67,7 @@ example usage:
   python -m tolias_lab_to_nwb.convert '/path/to/08 01 2019 sample 1.mat' -m path/to/metafile.yml -o path/to/dest.nwb
 ```
 
-Reading the resulting NWB files in python:
+### Reading the resulting NWB files in python
 
 ```python
 from pynwb import NWBHDF5IO
