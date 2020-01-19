@@ -10,8 +10,11 @@ pip install https://github.com/ben-dichter-consulting/tolias-lab-to-nwb.git
 in python:
 ```python
 import os
+
+from dateutil import parser
 from ruamel import yaml
 from scipy.io import loadmat
+
 from tolias_lab_to_nwb.convert import ToliasNWBConverter
 from tolias_lab_to_nwb.data_prep import data_preparation
 
@@ -24,6 +27,9 @@ session_id = os.path.splitext(fname)[0]
 
 with open(metafile_fpath) as f:
     metadata = yaml.safe_load(f)
+
+metadata['NWBFile']['session_start_time'] = parser.parse(session_id[:10])
+metadata['NWBFile']['session_id'] = session_id
 
 tolias_converter = ToliasNWBConverter(metadata)
 

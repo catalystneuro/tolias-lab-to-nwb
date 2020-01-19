@@ -1,21 +1,21 @@
-"""
-data_preperation was taken from the GetFeaturesPipeline.ipynb notebook of
-https://github.com/berenslab/EphysExtraction.git@a112e79
-"""
-
 import numpy as np
 import tolias_lab_to_nwb.EphysExtraction.ephys_extractor as efex
 
 
 def data_preparation(data, el_num=2, current_step=20):
-    """Analyse the data in dictionary format (assumes a certain outlook of the data) and return the voltage traces,
-    stimulus current magnitudes for all traces, the time and the current index for which the current magnitude equals 0 pA.
+    """
+    Analyze the data in dictionary format (assumes a certain outlook of the data) and return the voltage traces,
+    stimulus current magnitudes for all traces, the time and the current index for which the current magnitude equals 0
+    pA.
 
     Parameters
     ----------
-    data : dictionary full of voltage (V) and time (s) traces
-    el_num : integer, from which electrode number has been measured (optional, 2 by default)
-    current_step : float, which current step (pA) has been used between consecutive experiments (optional, 20 by default)
+    data : dictionary
+        full of voltage (V) and time (s) trace
+    el_num : integer
+        from which electrode number has been measured (optional, 2 by default)
+    current_step : float
+        which current step (pA) has been used between consecutive experiments (optional, 20 by default)
 
     Returns
     -------
@@ -67,10 +67,9 @@ def data_preparation(data, el_num=2, current_step=20):
     if np.abs(Vm - V_defl) < 2:
         el_num = 1
         while np.abs(Vm - V_defl) < 2:
-            object_ephys = efex.EphysSweepFeatureExtractor(t=time,
-                                                           v=1000 * data['Trace_{}_{}_{}_{}'.format(1, num, 1, el_num)][
-                                                                    :, 1], \
-                                                           start=0.1, end=0.7, filter=10)
+            object_ephys = efex.EphysSweepFeatureExtractor(
+                t=time, v=1000 * data['Trace_{}_{}_{}_{}'.format(1, num, 1, el_num)][:, 1],
+                start=0.1, end=0.7, filter=10)
             Vm = object_ephys._get_baseline_voltage()
             V_defl, _ = object_ephys.voltage_deflection()
             if el_num == 1:  # We already investigated el_num = 2
@@ -87,7 +86,7 @@ def data_preparation(data, el_num=2, current_step=20):
 
     curr_index_0 = 0  # Current stimulus magnitude index that corresponds to stimulating the cell with 0 pA
 
-    # Trace with the least amount of variance in the trace is assumed to be the trace corresponding to stimulating the cell
+    # Trace with the least amount of variance is assumed to be the trace corresponding to stimulating the cell
     # with 0 pA stimulation current
     best = np.var(1000 * data['Trace_1_{}_{}_{}'.format(num, 1, el_num)][:, 1])
     # best = np.abs(np.mean(1000*data['Trace_1_{}_{}_{}'.format(num, 1, el_num)][:, 1]) - Vm)
@@ -102,7 +101,7 @@ def data_preparation(data, el_num=2, current_step=20):
                 curr_index_0 - 1) * current_step  # - 1 since in the dictionary we start at 1 (not at zero)
     stop_current_impulse = start_current_impulse + (current_step * stim_paradigm_num)
     current = np.arange(start_current_impulse, stop_current_impulse, current_step)
-    # current = current[current < 800] #After that the cell might die and it's probably innecessary for the analysis
+    # current = current[current < 800] #After that the cell might die and it's probably unnecessary for the analysis
 
     # voltage will give us the voltage response for all different current steps
     voltage = np.zeros((n_samp, len(current)))
