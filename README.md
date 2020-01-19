@@ -111,3 +111,53 @@ _ = axs[0].set_xlabel('')
 
 ![](images/trace_plot.png)
 
+### reading data in MATLAB
+
+```matlab
+%% read
+
+fpath = '/Volumes/easystore5T/data/Tolias/08 01 2019 sample 1.nwb';
+
+nwb = nwbRead(fpath);
+
+stim_name = 'CurrentClampStimulusSeries002';
+
+stimulus = nwb.stimulus_presentation.get(stim_name);
+
+sweep_table = nwb.general_intracellular_ephys_sweep_table;
+
+sweep_numbers = sweep_table.sweep_number.data.load;
+
+for i = 1:length(sweep_table.series.data)
+    obj = sweep_table.series.data(i);
+    if obj.refresh(nwb) == stimulus
+        sweep_number = sweep_numbers(i);
+        break;
+    end
+end
+
+ind = find(sweep_numbers == sweep_number);
+ind = ind(ind ~= i); % remove stim ind
+
+response = sweep_table.series.data(ind).refresh(nwb);
+
+%% plot
+
+yy = stimulus.data.load;
+xx = (1:length(yy)) / stimulus.starting_time_rate;
+
+subplot(2,1,1)
+plot(xx,yy)
+ylabel(stimulus.data_unit)
+
+
+yy = response.data.load;
+xx = (1:length(yy)) / response.starting_time_rate;
+
+subplot(2,1,2)
+plot(xx,yy)
+ylabel(response.data_unit)
+xlabel('time (s)')
+```
+
+![](images/matlab_trace_plot.png)
