@@ -151,7 +151,7 @@ plot(xx,yy)
 ylabel(stimulus.data_unit)
 
 
-yy = response.data.load * stimulus.data_conversion;
+yy = response.data.load * response.data_conversion;
 xx = (1:length(yy)) / response.starting_time_rate;
 
 subplot(2,1,2)
