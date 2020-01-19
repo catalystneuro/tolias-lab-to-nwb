@@ -109,3 +109,5 @@ plot_sweep(response, ax=axs[1])
 _ = axs[0].set_xlabel('')
 ```
 
+![](images/trace_plot.png)
+
