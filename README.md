@@ -3,7 +3,7 @@ Code for converting Tolias Lab data to NWB. The text metadata is stored in a YAM
 
 author: Ben Dichter, ben.dichter@gmail.com
 
-This software was put together in collaboration with the Berens Lab under the [DANDI project](https://dandiarchive.org/).
+This software was put together in collaboration with the Tolias and Berens labs under the [DANDI project](https://dandiarchive.org/).
 
 ## Installation
 ```shell script
