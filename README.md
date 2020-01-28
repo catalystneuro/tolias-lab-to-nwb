@@ -1,6 +1,10 @@
 # tolias-lab-to-nwb
 Code for converting Tolias Lab data to NWB. The text metadata is stored in a YAML file, and must be edited with the correct fields to be added to the NWB file.
 
+author: Ben Dichter, ben.dichter@gmail.com
+
+This software was put together in collaboration with the Tolias and Berens labs under the [DANDI project](https://dandiarchive.org/).
+
 ## Installation
 ```shell script
 pip install tolias-lab-to-nwb
