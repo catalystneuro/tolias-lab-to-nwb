@@ -1,18 +1,20 @@
 import argparse
-import os
 
 import numpy as np
-from dateutil import parser
 from pynwb.icephys import CurrentClampStimulusSeries, CurrentClampSeries, IZeroClampSeries
-from ruamel import yaml
-from scipy.io import loadmat
 from nwbn_conversion_tools import NWBConverter
 from hdmf.backends.hdf5 import H5DataIO
+import pandas as pd
+
+import os
+
+from dateutil import parser
+from ruamel import yaml
+from scipy.io import loadmat
+from glob import glob
+from tqdm import tqdm
 
 from .data_prep import data_preparation
-
-
-# fpath = '/Users/bendichter/data/Berens/08 01 2019 sample 1.mat'
 
 
 def gen_current_stim_template(times, rate):
@@ -51,6 +53,76 @@ class ToliasNWBConverter(NWBConverter):
                     electrode=elec,
                     gain=1.,
                     sweep_number=i))
+
+
+def fetch_metadata(lookup_tag, csv, metadata):
+    """Reads metadata from mini-atlas-meta-data.csv and inserts it in the metadata object
+
+    Parameters
+    ----------
+    lookup_tag: str
+        e.g. '20190403_sample_5'
+    csv: path to mini-atlas-meta-data.csv
+    metadata: dict
+        metadata object
+
+    Returns
+    -------
+
+    """
+    df = pd.read_csv(csv, sep='\t')
+
+    metadata_from_csv = df[df['Cell'] == lookup_tag]
+
+    if 'Subject' not in metadata:
+        metadata['Subject'] = dict()
+    metadata['Subject']['subject_id'] = metadata_from_csv['Mouse'].iloc[0]
+    metadata['Subject']['date_of_birth'] = parser.parse(metadata_from_csv['Mouse date of birth'].iloc[0])
+
+    user = metadata_from_csv['User'].iloc[0]
+    user_map = {
+        'Fede': 'Federico Scala',
+        'Matteo': 'Matteo Bernabucci'
+    }
+    metadata['NWBFile']['experimenter'] = user_map[user]
+
+    return metadata
+
+
+def convert_all(data_dir='/Volumes/easystore5T/data/Tolias/ephys',
+                metafile_fpath='/Users/bendichter/dev/tolias-lab-to-nwb/metafile.yml',
+                out_dir='/Volumes/easystore5T/data/Tolias/nwb',
+                meta_csv_file='/Volumes/easystore5T/data/Tolias/ephys/mini-atlas-meta-data.csv'):
+
+    fpaths = glob(os.path.join(data_dir, '*/*/*/*.mat'))
+
+    for input_fpath in tqdm(fpaths):
+        fpath_base, fname = os.path.split(input_fpath)
+        old_session_id = os.path.splitext(fname)[0]
+        session_start_time = parser.parse(old_session_id[:10])
+        samp_str = '_'.join(old_session_id.split(' ')[-2:])
+        lookup_tag = session_start_time.strftime("%Y%m%d") + '_' + samp_str
+        output_fpath = os.path.join(out_dir, lookup_tag + '.nwb')
+
+        # handle metadata
+        with open(metafile_fpath) as f:
+            metadata = yaml.safe_load(f)
+
+        # load in session-specific data
+        # session_start_time = session_start_time.replace(tzinfo=gettz('US/Central'))
+        metadata['NWBFile']['session_start_time'] = session_start_time
+        metadata['NWBFile']['session_id'] = lookup_tag
+
+        metadata = fetch_metadata(lookup_tag, meta_csv_file, metadata)
+
+        tolias_converter = ToliasNWBConverter(metadata)
+
+        data = loadmat(input_fpath)
+        time, current, voltage, curr_index_0 = data_preparation(data)
+
+        tolias_converter.add_icephys_data(current, voltage, rate=25e3)
+
+        tolias_converter.save(output_fpath)
 
 
 def main():

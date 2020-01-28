@@ -7,7 +7,17 @@ pip install tolias-lab-to-nwb
 ```
 
 ## Usage
-in python:
+Convert all in python:
+```python
+from tolias_lab_to_nwb.convert import convert_all
+
+convert_all(data_dir='/Volumes/easystore5T/data/Tolias/ephys',
+            metafile_fpath='metafile.yml',
+            out_dir='/Volumes/easystore5T/data/Tolias/nwb',
+            meta_csv_file='/Volumes/easystore5T/data/Tolias/ephys/mini-atlas-meta-data.csv')
+```
+
+Convert single session in python:
 ```python
 import os
 
