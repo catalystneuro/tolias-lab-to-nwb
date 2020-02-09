@@ -42,10 +42,11 @@ class ToliasNWBConverter(NWBConverter):
                 starting_time=np.nan,
                 sweep_number=i)
             if icurrent == 0:
-                self.nwbfile.add_acquisition(IZeroClampSeries(**ccs_args))
+                response = self.nwbfile.add_acquisition(IZeroClampSeries(**ccs_args))
+                self.nwbfile.add_intracellular_recording(electrode=elec, response=response)
             else:
-                self.nwbfile.add_acquisition(CurrentClampSeries(**ccs_args))
-                self.nwbfile.add_stimulus(CurrentClampStimulusSeries(
+                response = self.nwbfile.add_acquisition(CurrentClampSeries(**ccs_args))
+                stimulus = self.nwbfile.add_stimulus(CurrentClampStimulusSeries(
                     name="CurrentClampStimulusSeries{:03d}".format(i),
                     data=H5DataIO(current_template * icurrent, compression=True),
                     starting_time=np.nan,
@@ -53,6 +54,8 @@ class ToliasNWBConverter(NWBConverter):
                     electrode=elec,
                     gain=1.,
                     sweep_number=i))
+                self.nwbfile.add_intracellular_recording(electrode=elec, stimulus=stimulus, response=response)
+        self.nwbfile.add_ic_sweep(recordings=list(range(len(current))))
 
 
 def fetch_metadata(lookup_tag, csv, metadata):
