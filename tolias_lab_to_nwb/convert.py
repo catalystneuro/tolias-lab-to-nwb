@@ -55,7 +55,8 @@ class ToliasNWBConverter(NWBConverter):
                     gain=1.,
                     sweep_number=i))
                 self.nwbfile.add_intracellular_recording(electrode=elec, stimulus=stimulus, response=response)
-        self.nwbfile.add_ic_sweep(recordings=list(range(len(current))))
+            self.nwbfile.add_sweep(recordings=[0])
+        self.nwbfile.add_ic_sweep_sequence(sweeps=list(range(len(current))))
 
 
 def fetch_metadata(lookup_tag, csv, metadata):
