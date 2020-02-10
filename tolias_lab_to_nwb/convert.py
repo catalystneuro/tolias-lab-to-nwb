@@ -7,6 +7,7 @@ from hdmf.backends.hdf5 import H5DataIO
 import pandas as pd
 
 import os
+import uuid
 
 from dateutil import parser
 from ruamel import yaml
@@ -15,6 +16,8 @@ from glob import glob
 from tqdm import tqdm
 
 from .data_prep import data_preparation
+
+from ndx_icephys_meta import ICEphysFile
 
 
 def gen_current_stim_template(times, rate):
@@ -25,12 +28,27 @@ def gen_current_stim_template(times, rate):
 
 
 class ToliasNWBConverter(NWBConverter):
+    def create_NWBFile(self, **NWBFile_metadata):
+        """
+
+        Parameters
+        ----------
+        NWBFile_metadata: args to go into NWBFile
+
+        Returns
+        -------
+
+        """
+        nwbfile_args = dict(identifier=str(uuid.uuid4()), )
+        nwbfile_args.update(**NWBFile_metadata)
+        return ICEphysFile(**nwbfile_args)
+
     def add_icephys_data(self, current, voltage, rate):
 
         current_template = gen_current_stim_template(times=(.1, .7, .9), rate=rate)
 
         elec = list(self.ic_elecs.values())[0]
-
+        sweep_indexes = []
         for i, (ivoltage, icurrent) in enumerate(zip(voltage.T, current)):
 
             ccs_args = dict(
@@ -39,24 +57,27 @@ class ToliasNWBConverter(NWBConverter):
                 electrode=elec,
                 rate=rate,
                 gain=1.,
-                starting_time=np.nan,
-                sweep_number=i)
+                starting_time=np.nan)
             if icurrent == 0:
-                response = self.nwbfile.add_acquisition(IZeroClampSeries(**ccs_args))
-                self.nwbfile.add_intracellular_recording(electrode=elec, response=response)
+                response = IZeroClampSeries(**ccs_args)
+                self.nwbfile.add_acquisition(response)
+                ir_index = self.nwbfile.add_intracellular_recording(electrode=elec, response=response)
             else:
-                response = self.nwbfile.add_acquisition(CurrentClampSeries(**ccs_args))
-                stimulus = self.nwbfile.add_stimulus(CurrentClampStimulusSeries(
+                response = CurrentClampSeries(**ccs_args)
+                self.nwbfile.add_acquisition(response)
+
+                stimulus = CurrentClampStimulusSeries(
                     name="CurrentClampStimulusSeries{:03d}".format(i),
                     data=H5DataIO(current_template * icurrent, compression=True),
                     starting_time=np.nan,
                     rate=rate,
                     electrode=elec,
-                    gain=1.,
-                    sweep_number=i))
-                self.nwbfile.add_intracellular_recording(electrode=elec, stimulus=stimulus, response=response)
-            self.nwbfile.add_sweep(recordings=[0])
-        self.nwbfile.add_ic_sweep_sequence(sweeps=list(range(len(current))))
+                    gain=1.)
+                self.nwbfile.add_stimulus(stimulus)
+                ir_index = self.nwbfile.add_intracellular_recording(electrode=elec, stimulus=stimulus,
+                                                                    response=response)
+            sweep_indexes.append(self.nwbfile.add_ic_sweep(recordings=[ir_index, ]))
+        self.nwbfile.add_ic_sweep_sequence(sweeps=sweep_indexes)
 
 
 def fetch_metadata(lookup_tag, csv, metadata):
