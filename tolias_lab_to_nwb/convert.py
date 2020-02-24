@@ -5,6 +5,7 @@ from pynwb.icephys import CurrentClampStimulusSeries, CurrentClampSeries, IZeroC
 from nwbn_conversion_tools import NWBConverter
 from hdmf.backends.hdf5 import H5DataIO
 import pandas as pd
+from datetime import datetime
 
 import os
 
@@ -15,6 +16,7 @@ from glob import glob
 from tqdm import tqdm
 
 from .data_prep import data_preparation
+from ndx_dandi_icephys import DandiIcephysMetadata
 
 
 def gen_current_stim_template(times, rate):
@@ -25,6 +27,10 @@ def gen_current_stim_template(times, rate):
 
 
 class ToliasNWBConverter(NWBConverter):
+
+    def add_meta_data(self, metadata):
+        self.nwbfile.add_lab_meta_data(DandiIcephysMetadata(cell_id=metadata['cell_id']))
+
     def add_icephys_data(self, current, voltage, rate):
 
         current_template = gen_current_stim_template(times=(.1, .7, .9), rate=rate)
@@ -71,7 +77,9 @@ def fetch_metadata(lookup_tag, csv, metadata):
 
     """
     df = pd.read_csv(csv, sep='\t')
-
+    if not any(df['Cell'] == lookup_tag):
+        print('{} not found in {}'.format(lookup_tag, csv))
+        return None
     metadata_from_csv = df[df['Cell'] == lookup_tag]
 
     if 'Subject' not in metadata:
@@ -85,44 +93,68 @@ def fetch_metadata(lookup_tag, csv, metadata):
         'Matteo': 'Matteo Bernabucci'
     }
     metadata['NWBFile']['experimenter'] = user_map[user]
+    metadata['lab_meta_data'] = {'cell_id': lookup_tag,
+                                 'slice_id': metadata_from_csv['Slice'].iloc[0]}
 
     return metadata
+
+
+def convert_file(input_fpath, output_fpath, metafile_fpath, meta_csv_file, overwrite=False):
+    if not overwrite and os.path.isfile(output_fpath):
+        return
+    fpath_base, fname = os.path.split(input_fpath)
+    old_session_id = os.path.splitext(fname)[0]
+    try:
+        session_start_time = datetime.strptime(old_session_id[:10], '%m %d %Y')  # 04 18 2018
+    except ValueError:
+        session_start_time = datetime.strptime(old_session_id[:8], '%m%d%Y')  # 04182018
+    samp_str = '_'.join(old_session_id.split(' ')[-2:])
+    lookup_tag = session_start_time.strftime("%Y%m%d") + '_' + samp_str
+
+    # handle metadata
+    with open(metafile_fpath) as f:
+        metadata = yaml.safe_load(f)
+
+    # load in session-specific data
+    # session_start_time = session_start_time.replace(tzinfo=gettz('US/Central'))
+    metadata['NWBFile']['session_start_time'] = session_start_time
+    metadata['NWBFile']['session_id'] = lookup_tag
+
+    metadata = fetch_metadata(lookup_tag, meta_csv_file, metadata)
+    if metadata is None:
+        return
+
+    tolias_converter = ToliasNWBConverter(metadata)
+
+    data = loadmat(input_fpath)
+    time, current, voltage, curr_index_0 = data_preparation(data)
+
+    tolias_converter.add_icephys_data(current, voltage, rate=25e3)
+    tolias_converter.add_meta_data(metadata['lab_meta_data'])
+
+    tolias_converter.save(output_fpath)
 
 
 def convert_all(data_dir='/Volumes/easystore5T/data/Tolias/ephys',
                 metafile_fpath='/Users/bendichter/dev/tolias-lab-to-nwb/metafile.yml',
                 out_dir='/Volumes/easystore5T/data/Tolias/nwb',
-                meta_csv_file='/Volumes/easystore5T/data/Tolias/ephys/mini-atlas-meta-data.csv'):
+                meta_csv_file='/Volumes/easystore5T/data/Tolias/ephys/mini-atlas-meta-data.csv',
+                overwrite=False):
 
     fpaths = glob(os.path.join(data_dir, '*/*/*/*.mat'))
 
-    for input_fpath in tqdm(fpaths):
+    for input_fpath in tqdm(list(fpaths)):
         fpath_base, fname = os.path.split(input_fpath)
         old_session_id = os.path.splitext(fname)[0]
-        session_start_time = parser.parse(old_session_id[:10])
+        try:
+            session_start_time = datetime.strptime(old_session_id[:10], '%m %d %Y')  # 04 18 2018
+        except ValueError:
+            session_start_time = datetime.strptime(old_session_id[:8], '%m%d%Y')  # 04182018
         samp_str = '_'.join(old_session_id.split(' ')[-2:])
         lookup_tag = session_start_time.strftime("%Y%m%d") + '_' + samp_str
         output_fpath = os.path.join(out_dir, lookup_tag + '.nwb')
-
-        # handle metadata
-        with open(metafile_fpath) as f:
-            metadata = yaml.safe_load(f)
-
-        # load in session-specific data
-        # session_start_time = session_start_time.replace(tzinfo=gettz('US/Central'))
-        metadata['NWBFile']['session_start_time'] = session_start_time
-        metadata['NWBFile']['session_id'] = lookup_tag
-
-        metadata = fetch_metadata(lookup_tag, meta_csv_file, metadata)
-
-        tolias_converter = ToliasNWBConverter(metadata)
-
-        data = loadmat(input_fpath)
-        time, current, voltage, curr_index_0 = data_preparation(data)
-
-        tolias_converter.add_icephys_data(current, voltage, rate=25e3)
-
-        tolias_converter.save(output_fpath)
+        if overwrite or not os.path.isfile(output_fpath):
+            convert_file(input_fpath, output_fpath, metafile_fpath, meta_csv_file, overwrite)
 
 
 def main():
