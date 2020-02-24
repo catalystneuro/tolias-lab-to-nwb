@@ -1,9 +1,9 @@
 # tolias-lab-to-nwb
-Code for converting Tolias Lab data to NWB. The text metadata is stored in a YAML file, and must be edited with the correct fields to be added to the NWB file.
+Convert patch-master .mat intracellular electrophysiology to NWB. Developed in collaboration with the Tolias and Berens labs under the [DANDI project](https://dandiarchive.org/).
 
 author: Ben Dichter, ben.dichter@gmail.com
 
-This software was put together in collaboration with the Tolias and Berens labs under the [DANDI project](https://dandiarchive.org/).
+Text metadata is stored in a YAML file, and must be edited with the correct fields to be added to the NWB file.
 
 ## Installation
 ```shell script
@@ -11,6 +11,8 @@ pip install tolias-lab-to-nwb
 ```
 
 ## Usage
+Text metadata is stored in a YAML file, and must be edited with the correct fields to be added to the NWB file.
+ 
 Convert all in python:
 ```python
 from tolias_lab_to_nwb.convert import convert_all
