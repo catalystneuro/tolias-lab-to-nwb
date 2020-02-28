@@ -1,22 +1,22 @@
 import argparse
+import os
+from datetime import datetime
+from glob import glob
 
 import numpy as np
-from pynwb.icephys import CurrentClampStimulusSeries, CurrentClampSeries, IZeroClampSeries
-from nwbn_conversion_tools import NWBConverter
-from hdmf.backends.hdf5 import H5DataIO
 import pandas as pd
-from datetime import datetime
-
-import os
-
 from dateutil import parser
+from hdmf.backends.hdf5 import H5DataIO
+from joblib import Parallel, delayed
+from ndx_dandi_icephys import DandiIcephysMetadata
+from nwbn_conversion_tools import NWBConverter
+from pynwb.icephys import CurrentClampStimulusSeries, CurrentClampSeries, IZeroClampSeries
 from ruamel import yaml
 from scipy.io import loadmat
-from glob import glob
 from tqdm import tqdm
 
 from .data_prep import data_preparation
-from ndx_dandi_icephys import DandiIcephysMetadata
+from .parallel import tqdm_joblib
 
 
 def gen_current_stim_template(times, rate):
@@ -29,7 +29,7 @@ def gen_current_stim_template(times, rate):
 class ToliasNWBConverter(NWBConverter):
 
     def add_meta_data(self, metadata):
-        self.nwbfile.add_lab_meta_data(DandiIcephysMetadata(cell_id=metadata['cell_id']))
+        self.nwbfile.add_lab_meta_data(DandiIcephysMetadata(**metadata))
 
     def add_icephys_data(self, current, voltage, rate):
 
@@ -95,6 +95,7 @@ def fetch_metadata(lookup_tag, csv, metadata):
     metadata['NWBFile']['experimenter'] = user_map[user]
     metadata['lab_meta_data'] = {'cell_id': lookup_tag,
                                  'slice_id': metadata_from_csv['Slice'].iloc[0]}
+    print(metadata['lab_meta_data'])
 
     return metadata
 
@@ -139,22 +140,28 @@ def convert_all(data_dir='/Volumes/easystore5T/data/Tolias/ephys',
                 metafile_fpath='/Users/bendichter/dev/tolias-lab-to-nwb/metafile.yml',
                 out_dir='/Volumes/easystore5T/data/Tolias/nwb',
                 meta_csv_file='/Volumes/easystore5T/data/Tolias/ephys/mini-atlas-meta-data.csv',
-                overwrite=False):
+                overwrite=False, n_jobs=1):
 
-    fpaths = glob(os.path.join(data_dir, '*/*/*/*.mat'))
+    fpaths = list(glob(os.path.join(data_dir, '*/*/*/*.mat')))
 
-    for input_fpath in tqdm(list(fpaths)):
-        fpath_base, fname = os.path.split(input_fpath)
-        old_session_id = os.path.splitext(fname)[0]
-        try:
-            session_start_time = datetime.strptime(old_session_id[:10], '%m %d %Y')  # 04 18 2018
-        except ValueError:
-            session_start_time = datetime.strptime(old_session_id[:8], '%m%d%Y')  # 04182018
-        samp_str = '_'.join(old_session_id.split(' ')[-2:])
-        lookup_tag = session_start_time.strftime("%Y%m%d") + '_' + samp_str
-        output_fpath = os.path.join(out_dir, lookup_tag + '.nwb')
-        if overwrite or not os.path.isfile(output_fpath):
-            convert_file(input_fpath, output_fpath, metafile_fpath, meta_csv_file, overwrite)
+    with tqdm_joblib(tqdm(desc="Converting Tolias data", total=len(fpaths))) as progress_bar:
+        Parallel(n_jobs=n_jobs)(delayed(gather_and_convert)
+                                (input_fpath, out_dir, metafile_fpath, meta_csv_file, overwrite)
+                                for input_fpath in fpaths)
+
+
+def gather_and_convert(input_fpath, out_dir, metafile_fpath, meta_csv_file, overwrite=False):
+    fpath_base, fname = os.path.split(input_fpath)
+    old_session_id = os.path.splitext(fname)[0]
+    try:
+        session_start_time = datetime.strptime(old_session_id[:10], '%m %d %Y')  # 04 18 2018
+    except ValueError:
+        session_start_time = datetime.strptime(old_session_id[:8], '%m%d%Y')  # 04182018
+    samp_str = '_'.join(old_session_id.split(' ')[-2:])
+    lookup_tag = session_start_time.strftime("%Y%m%d") + '_' + samp_str
+    output_fpath = os.path.join(out_dir, lookup_tag + '.nwb')
+    if overwrite or not os.path.isfile(output_fpath):
+        convert_file(input_fpath, output_fpath, metafile_fpath, meta_csv_file, overwrite)
 
 
 def main():
