@@ -90,9 +90,9 @@ from pynwb import NWBHDF5IO
 import numpy as np
 import matplotlib.pyplot as plt
 
-fpath = 'path/to/08 01 2019 sample 1.nwb'
+fpath = 'path/to/08012019_sample_1.nwb'
 
-io = NWBHDF5IO(fpath, 'r')
+io = NWBHDF5IO(fpath, 'r', load_namespaces=True)
 
 nwb = io.read()
 
