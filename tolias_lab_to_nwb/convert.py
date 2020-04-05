@@ -123,6 +123,7 @@ def convert_file(input_fpath, output_fpath, metafile_fpath, meta_csv_file, overw
 
     metadata = fetch_metadata(lookup_tag, meta_csv_file, metadata)
     if metadata is None:
+        print('no metadata found for {}'.format(lookup_tag))
         return
 
     tolias_converter = ToliasNWBConverter(metadata)
