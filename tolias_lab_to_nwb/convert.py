@@ -8,9 +8,10 @@ import pandas as pd
 from dateutil import parser
 from hdmf.backends.hdf5 import H5DataIO
 from joblib import Parallel, delayed
-from ndx_dandi_icephys import DandiIcephysMetadata
-from nwbn_conversion_tools import NWBConverter
+from ndx_dandi_icephys import DandiIcephysMetadata, CreSubject
 from pynwb.icephys import CurrentClampStimulusSeries, CurrentClampSeries, IZeroClampSeries
+import uuid
+from pynwb import NWBFile, NWBHDF5IO
 from ruamel import yaml
 from scipy.io import loadmat
 from tqdm import tqdm
@@ -26,16 +27,32 @@ def gen_current_stim_template(times, rate):
     return current_template
 
 
-class ToliasNWBConverter(NWBConverter):
+class ToliasNWBConverter:
+
+    def __init__(self, metadata):
+        kwargs = metadata['NWBFile']
+        kwargs['identifier'] = metadata['NWBFile'].get('identifier', str(uuid.uuid4()))
+
+        self.nwbfile = NWBFile(**metadata['NWBFile'])
 
     def add_meta_data(self, metadata):
         self.nwbfile.add_lab_meta_data(DandiIcephysMetadata(**metadata))
+
+    def create_subject(self, metadata_subject):
+        print(metadata_subject)
+        self.nwbfile.subject = CreSubject(**metadata_subject)
 
     def add_icephys_data(self, current, voltage, rate):
 
         current_template = gen_current_stim_template(times=(.1, .7, .9), rate=rate)
 
-        elec = list(self.ic_elecs.values())[0]
+        device = self.nwbfile.create_device('device')
+
+        elec = self.nwbfile.create_icephys_electrode(
+            name="elec0",
+            description='a mock intracellular electrode',
+            device=device
+        )
 
         for i, (ivoltage, icurrent) in enumerate(zip(voltage.T, current)):
 
@@ -46,19 +63,27 @@ class ToliasNWBConverter(NWBConverter):
                 rate=rate,
                 gain=1.,
                 starting_time=np.nan,
-                sweep_number=i)
+                sweep_number=np.uint32(i)
+            )
             if icurrent == 0:
                 self.nwbfile.add_acquisition(IZeroClampSeries(**ccs_args))
             else:
                 self.nwbfile.add_acquisition(CurrentClampSeries(**ccs_args))
-                self.nwbfile.add_stimulus(CurrentClampStimulusSeries(
-                    name="CurrentClampStimulusSeries{:03d}".format(i),
-                    data=H5DataIO(current_template * icurrent, compression=True),
-                    starting_time=np.nan,
-                    rate=rate,
-                    electrode=elec,
-                    gain=1.,
-                    sweep_number=i))
+                self.nwbfile.add_stimulus(
+                    CurrentClampStimulusSeries(
+                        name="CurrentClampStimulusSeries{:03d}".format(i),
+                        data=H5DataIO(current_template * icurrent, compression=True),
+                        starting_time=np.nan,
+                        rate=rate,
+                        electrode=elec,
+                        gain=1.,
+                        sweep_number=np.uint32(i)
+                    )
+                )
+
+    def save(self, output_path):
+        with NWBHDF5IO(output_path, 'w') as io:
+            io.write(self.nwbfile)
 
 
 def fetch_metadata(lookup_tag, csv, metadata):
@@ -86,16 +111,80 @@ def fetch_metadata(lookup_tag, csv, metadata):
         metadata['Subject'] = dict()
     metadata['Subject']['subject_id'] = metadata_from_csv['Mouse'].iloc[0]
     metadata['Subject']['date_of_birth'] = parser.parse(metadata_from_csv['Mouse date of birth'].iloc[0])
+    metadata['Subject']['age'] = 'P{}D'.format(str(metadata_from_csv['Mouse age'].iloc[0]))
+    metadata['Subject']['sex'] = metadata_from_csv['Mouse gender'].iloc[0]
+    metadata['Subject']['genotype'] = metadata_from_csv['Mouse genotype'].iloc[0]
+    metadata['Subject']['cre'] = metadata_from_csv['Cre'].iloc[0]
 
     user = metadata_from_csv['User'].iloc[0]
     user_map = {
         'Fede': 'Federico Scala',
-        'Matteo': 'Matteo Bernabucci'
+        'Matteo': 'Matteo Bernabucci',
+        'Fede, Ray': ['Federico Scala', 'Jesus Ramon Castro']
     }
     metadata['NWBFile']['experimenter'] = user_map[user]
-    metadata['lab_meta_data'] = {'cell_id': lookup_tag,
-                                 'slice_id': metadata_from_csv['Slice'].iloc[0]}
-    print(metadata['lab_meta_data'])
+
+    metadata['lab_meta_data'] = {'cell_id': lookup_tag}
+    metadata_dtype = {
+        'Length (bp)': int,
+        'Yield (pg/µl)': int,
+        'Traced': str,
+        'Exclusion reasons': str,
+        'Soma depth (µm)': float
+    }
+    for nwb_key, csv_key in (('slice_id', 'Slice'),
+                             ('targeted_layer', 'Targeted layer'),
+                             ('inferred_layer', 'Inferred layer'),
+                             ('exon_reads', 'Exon reads'),
+                             ('intron_reads', 'Intron reads'),
+                             ('intergenic_reads', 'Intergenic reads'),
+                             ('sequencing_batch', 'Sequencing batch'),
+                             ('number_of_genes_detected', 'Number of genes detected'),
+                             ('RNA_family', 'RNA family'),
+                             ('RNA_type', 'RNA type'),
+                             ('RNA_type_confidence', 'RNA type confidence'),
+                             ('RNA_type_top3', 'RNA type top-3'),
+                             ('ALM_VISp_top3', 'ALM/VISp top-3'),
+                             ('length', 'Length (bp)'),
+                             ('yield', 'Yield (pg/µl)'),
+                             ('hold_time (min)', 'Hold Time (min'),
+                             ('soma_depth_4x', 'soma_depth (4x)'),
+                             ('soma_depth_um', 'Soma depth (µm)'),
+                             ('cortical_thickness_4x', 'Soma depth (4x)'),
+                             ('cortical_thickness_um', 'Cortical thickness (4x)'),
+                             ('traced', 'Traced'),
+                             ('exclusion_reason', 'Exclusion reasons'),
+                             ('recording_temperature', 'Recording Temperature (˚C)')):
+        if csv_key in metadata_from_csv and metadata_from_csv[csv_key].iloc[0]:
+            if csv_key in metadata_dtype:
+                try:
+                    input_val = metadata_from_csv[csv_key].iloc[0]
+                    if np.isnan(input_val) and metadata_dtype[csv_key] is str:
+                        val = None
+                    else:
+                        val = metadata_dtype[csv_key](input_val)
+                except:
+                    val = None
+            else:
+                val = metadata_from_csv[csv_key].iloc[0]
+                # catch case where missing strings are NaNs
+                if isinstance(val, np.float) and np.isnan(val):
+                    val = None
+            metadata['lab_meta_data'].update({nwb_key: val})
+
+    if 'Pipette Resistance (MΩ)' in metadata_from_csv:
+        metadata['Icephys'].update(
+            Electrode=dict(
+                resistance=
+                "Pipette Resistance (MΩ):{}\n"
+                "Access Resistance (MΩ): {}\n"
+                "Seal Resistance (MΩ): {}".format(
+                    *metadata_from_csv[['Pipette Resistance (MΩ)',
+                                        'Access Resistance (MΩ)',
+                                        'Seal Resistance (MΩ)']].iloc[0]
+                )
+            )
+        )
 
     return metadata
 
@@ -127,6 +216,7 @@ def convert_file(input_fpath, output_fpath, metafile_fpath, meta_csv_file, overw
         return
 
     tolias_converter = ToliasNWBConverter(metadata)
+    tolias_converter.create_subject(metadata['Subject'])
 
     data = loadmat(input_fpath)
     time, current, voltage, curr_index_0 = data_preparation(data)
@@ -140,7 +230,7 @@ def convert_file(input_fpath, output_fpath, metafile_fpath, meta_csv_file, overw
 def convert_all(data_dir='/Volumes/easystore5T/data/Tolias/ephys',
                 metafile_fpath='/Users/bendichter/dev/tolias-lab-to-nwb/metafile.yml',
                 out_dir='/Volumes/easystore5T/data/Tolias/nwb',
-                meta_csv_file='/Volumes/easystore5T/data/Tolias/ephys/mini-atlas-meta-data.csv',
+                meta_csv_file='/Volumes/easystore5T/data/Tolias/ephys/m1_patchseq_meta_data.csv',
                 overwrite=False, n_jobs=1):
 
     fpaths = list(glob(os.path.join(data_dir, '*/*/*/*.mat')))
@@ -202,6 +292,7 @@ def main():
     metadata['NWBFile']['session_id'] = session_id
 
     tolias_converter = ToliasNWBConverter(metadata)
+    tolias_converter.create_subject(metadata['Subject'])
 
     data = loadmat(args.input_fpath)
     time, current, voltage, curr_index_0 = data_preparation(data)
