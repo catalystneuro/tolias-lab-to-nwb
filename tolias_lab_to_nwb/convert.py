@@ -108,13 +108,15 @@ def fetch_metadata(lookup_tag, csv, metadata):
     metadata_from_csv = df[df['Cell'] == lookup_tag]
 
     if 'Subject' not in metadata:
-        metadata['Subject'] = dict()
-    metadata['Subject']['subject_id'] = metadata_from_csv['Mouse'].iloc[0]
-    metadata['Subject']['date_of_birth'] = parser.parse(metadata_from_csv['Mouse date of birth'].iloc[0])
-    metadata['Subject']['age'] = 'P{}D'.format(str(metadata_from_csv['Mouse age'].iloc[0]))
-    metadata['Subject']['sex'] = metadata_from_csv['Mouse gender'].iloc[0]
-    metadata['Subject']['genotype'] = metadata_from_csv['Mouse genotype'].iloc[0]
-    metadata['Subject']['cre'] = metadata_from_csv['Cre'].iloc[0]
+        metadata['Subject'] = dict(
+            species='Mus musculus',
+            subject_id=metadata_from_csv['Mouse'].iloc[0],
+            date_of_birth=parser.parse(metadata_from_csv['Mouse date of birth'].iloc[0]),
+            age='P{}D'.format(str(metadata_from_csv['Mouse age'].iloc[0])),
+            sex=metadata_from_csv['Mouse gender'].iloc[0],
+            genotype=metadata_from_csv['Mouse genotype'].iloc[0],
+            cre=metadata_from_csv['Cre'].iloc[0],
+        )
 
     user = metadata_from_csv['User'].iloc[0]
     user_map = {
